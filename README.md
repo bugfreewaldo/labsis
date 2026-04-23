@@ -95,6 +95,33 @@ Luego abre:
 - **Keycloak**: http://localhost:8080 — `admin/admin`
 - **OPA**: http://localhost:8181/v1/data/labsis/autovalidacion
 
+> La primera vez que corres `make up`, Docker construye 7+ imágenes (Java, Python,
+> Node) — tarda **~5-10 minutos**. Las veces siguientes usa caché y tarda ~30 s.
+> Después del `Started`, dale **~30-60 s** a los servicios Spring Boot para que
+> terminen de bootear antes de golpear endpoints.
+
+### Verificar que todo está arriba
+
+```bash
+make ps
+# Deben aparecer 20 contenedores "Up" (los dos pg "healthy").
+```
+
+Smoke test rápido de endpoints:
+
+```bash
+curl -s http://localhost:8101/actuator/health   # ms-pacientes
+curl -s http://localhost:8104/indicadores/resumen  # ms-bi (lee del standby)
+curl -s http://localhost:8200/health             # ia-mapper
+```
+
+### Apagar el stack
+
+```bash
+make down    # apaga los 20 contenedores, CONSERVA los volúmenes (datos, DB, etc.)
+make clean   # apaga Y borra volúmenes (la DB arranca vacía la próxima vez)
+```
+
 ---
 
 ## Alternativa sin `make`: `docker compose` directo
@@ -220,6 +247,44 @@ make backup-test
 echo "IRT=12.8 ng/mL; TSH=3.1 uU/mL; G6PD=49.7 U/dL" > samples/incoming/equipo_nuevo.txt
 # Observa los logs: docker logs -f labsis-ia-mapper
 ```
+
+---
+
+## Gotchas (Windows + OneDrive)
+
+Cosas que pueden morderte si corres esto en Windows, especialmente con el
+proyecto bajo una carpeta sincronizada por OneDrive:
+
+- **Usa Git Bash o WSL**, no PowerShell ni CMD. El `Makefile` invoca `/bin/bash`
+  y los scripts de `scripts/` son `.sh`. Si sólo tienes `docker compose`, mira
+  la sección *"Alternativa sin `make`"* arriba.
+
+- **Si Docker Desktop se apaga** (o tu laptop entra en suspensión profunda) y lo
+  vuelves a abrir, los contenedores se reinician solos gracias a
+  `restart: unless-stopped`. Dale **30-60 s** antes de volver a golpear
+  endpoints: Spring Boot tarda en arrancar.
+
+- **`equipo-connect` usa `PollingObserver`** (watchdog), no inotify. Es porque
+  los eventos de inotify **no se propagan** a través de bind mounts desde
+  Windows/OneDrive a contenedores Linux. Con polling se revisa el directorio
+  cada segundo y funciona confiablemente. Si un drop no es detectado, dale unos
+  segundos o dropea un archivo nuevo (los nombres distintos fuerzan la
+  re-detección).
+
+- **Primer drop tras `make up` puede fallar** con `Connection refused` porque
+  `equipo-connect` hace su primera pasada ANTES de que `ia-mapper` esté aceptando
+  conexiones. Simplemente dropea otro archivo segundos después.
+
+- **`ANTHROPIC_API_KEY` en `.env`** está en texto plano. El `.env` **ya está en
+  `.gitignore`**, pero si compartes el repo (zip, email, etc.) asegúrate de
+  rotar la key antes. Puedes poner `IA_FALLBACK_ONLY=true` y dejar la key vacía
+  para demos sin conectividad.
+
+- **Chaos de Postgres NO promueve el standby.** Cuando haces `chaos-kill-primary`
+  el standby sigue siendo réplica read-only — por eso Portal y BI (que leen del
+  standby) siguen funcionando, pero los writers (`ms-pacientes`) fallan hasta
+  que corres `chaos-restore`. Esto es intencional: el MVP demuestra resiliencia
+  de lectura, no failover automático (que requeriría `repmgr` / Patroni).
 
 ---
 
