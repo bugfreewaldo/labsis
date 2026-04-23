@@ -17,7 +17,7 @@ Calderón Gómez.
 
 | Dolor actual (producción) | Cómo lo ataca el MVP |
 |---|---|
-| Monolito con SPOF total: si cae, no hay servicio ni para lab ni para padres | Microservicios + PostgreSQL HA (primary/standby con repmgr); portal lee del standby |
+| Monolito con SPOF total: si cae, no hay servicio ni para lab ni para padres | Microservicios + PostgreSQL primary/standby con streaming replication; portal lee del standby |
 | `InterfazLabsis` CMD: integración 1-a-1 por equipo, canal plano sin TLS | `equipo-connect` (agente zero-trust) + `ia-mapper` (FastAPI + Anthropic) que reconoce formatos heterogéneos |
 | 8 placas de 96 pozos procesadas 1 a 1 | Kafka con consumidores paralelos; batch de 768 resultados en segundos |
 | Autovalidación cableada en el monolito | Motor de reglas OPA versionado (incluye 17-OHP peso-dependiente) |
@@ -49,7 +49,7 @@ Detalles en el informe: `../ProyectoFinal/Restrepo_Pitti_Salazar_Grupo1_Proyecto
 - **Java 21 + Spring Boot 3.3** — `ms-pacientes`, `ms-muestras`, `ms-analitico`, `ms-bi`
 - **Python 3.12 + FastAPI** — `ia-mapper`, `equipo-connect`
 - **Next.js 14 + NextAuth** — `ms-portal` (OIDC contra Keycloak)
-- **PostgreSQL 15 + repmgr** (Bitnami) — primary + standby con failover automático
+- **PostgreSQL 15** oficial — primary + standby con streaming replication (clone vía `pg_basebackup -R`)
 - **Redpanda** — Kafka-compatible sin ZooKeeper
 - **Keycloak 24** — OIDC con realm `labsis` pre-cargado
 - **Open Policy Agent (OPA)** — motor de reglas de autovalidación (Rego)

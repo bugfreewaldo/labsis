@@ -1,6 +1,6 @@
 -- Labsis MVP seed schema.
--- Run once by Bitnami entrypoint on first boot of pg-primary.
--- Standby mirrors automatically via streaming replication (repmgr).
+-- Run once by the postgres docker-entrypoint on first boot of pg-primary.
+-- Standby mirrors via streaming replication (pg_basebackup + standby.signal).
 
 CREATE SCHEMA IF NOT EXISTS pacientes;
 CREATE SCHEMA IF NOT EXISTS muestras;

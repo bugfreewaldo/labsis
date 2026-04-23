@@ -34,24 +34,30 @@ services:
   # Plano de Datos
   # =========================================================================
   pg-primary:
-    image: bitnami/postgresql-repmgr:15
+    image: postgres:15
     container_name: labsis-pg-primary
     restart: unless-stopped
     environment:
-      POSTGRESQL_POSTGRES_PASSWORD: postgres
-      POSTGRESQL_USERNAME: labsis
-      POSTGRESQL_PASSWORD: labsis
-      POSTGRESQL_DATABASE: labsis
-      REPMGR_PASSWORD: repmgr
-      REPMGR_PRIMARY_HOST: pg-primary
-      REPMGR_PARTNER_NODES: pg-primary,pg-standby
-      REPMGR_NODE_NAME: pg-primary
-      REPMGR_NODE_NETWORK_NAME: pg-primary
-      REPMGR_PORT_NUMBER: 5432
+      POSTGRES_USER: labsis
+      POSTGRES_PASSWORD: labsis
+      POSTGRES_DB: labsis
+      REPLICATION_PASSWORD: replicator
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=replica"
+      - "-c"
+      - "max_wal_senders=10"
+      - "-c"
+      - "wal_keep_size=256"
+      - "-c"
+      - "hot_standby=on"
+      - "-c"
+      - "listen_addresses=*"
     ports:
       - "5432:5432"
     volumes:
-      - pg_primary_data:/bitnami/postgresql
+      - pg_primary_data:/var/lib/postgresql/data
       - ../infra/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U labsis -d labsis"]
@@ -61,27 +67,26 @@ services:
     networks: [labsis]
 
   pg-standby:
-    image: bitnami/postgresql-repmgr:15
+    image: postgres:15
     container_name: labsis-pg-standby
     restart: unless-stopped
     depends_on:
       pg-primary:
         condition: service_healthy
     environment:
-      POSTGRESQL_POSTGRES_PASSWORD: postgres
-      POSTGRESQL_USERNAME: labsis
-      POSTGRESQL_PASSWORD: labsis
-      POSTGRESQL_DATABASE: labsis
-      REPMGR_PASSWORD: repmgr
-      REPMGR_PRIMARY_HOST: pg-primary
-      REPMGR_PARTNER_NODES: pg-primary,pg-standby
-      REPMGR_NODE_NAME: pg-standby
-      REPMGR_NODE_NETWORK_NAME: pg-standby
-      REPMGR_PORT_NUMBER: 5432
+      REPLICATION_PASSWORD: replicator
+    entrypoint: ["bash", "/usr/local/bin/standby-entrypoint.sh"]
+    command: ["postgres"]
     ports:
       - "5433:5432"
     volumes:
-      - pg_standby_data:/bitnami/postgresql
+      - pg_standby_data:/var/lib/postgresql/data
+      - ../infra/postgres/standby/entrypoint.sh:/usr/local/bin/standby-entrypoint.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U labsis -d labsis"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
     networks: [labsis]
 
   redis:

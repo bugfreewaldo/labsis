@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Simula un fallo total del primary de PostgreSQL para observar:
-# 1) Que repmgr promueve automáticamente el standby.
-# 2) Que ms-bi y ms-portal (lectores del standby) continúan operando.
-# 3) Que los microservicios que escriben contra el primary entran en CB abierto
+# 1) Que ms-bi y ms-portal (lectores del standby) continúan operando.
+# 2) Que los microservicios que escriben contra el primary entran en CB abierto
 #    y disparan fallbacks visibles en Grafana.
+# Nota: el standby NO se promueve automáticamente (no usamos repmgr); sigue
+# como réplica read-only. Al restaurar el primary, el streaming replication
+# reanuda solo.
 set -euo pipefail
 
 echo "[chaos] Stopping labsis-pg-primary..."
