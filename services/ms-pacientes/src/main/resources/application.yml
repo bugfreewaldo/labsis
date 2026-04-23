@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: ms-pacientes
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://pg-primary:5432/labsis}
+    username: ${SPRING_DATASOURCE_USERNAME:labsis}
+    password: ${SPRING_DATASOURCE_PASSWORD:labsis}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: pacientes
+  redis:
+    host: ${SPRING_REDIS_HOST:redis}
+    port: 6379
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:redpanda:29092}
+    producer:
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ms-pacientes

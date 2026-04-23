@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: ms-muestras
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://pg-primary:5432/labsis}
+    username: ${SPRING_DATASOURCE_USERNAME:labsis}
+    password: ${SPRING_DATASOURCE_PASSWORD:labsis}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: muestras
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:redpanda:29092}
+    consumer:
+      group-id: ms-muestras
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics

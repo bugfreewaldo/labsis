@@ -1,0 +1,75 @@
+{
+  "realm": "labsis",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "roles": {
+    "realm": [
+      { "name": "tecnologo", "description": "Tecnólogo médico de laboratorio" },
+      { "name": "secretaria", "description": "Secretaria de laboratorio" },
+      { "name": "director", "description": "Director de hospital / Admin MINSA" },
+      { "name": "paciente", "description": "Padre/Tutor que consulta resultados" }
+    ]
+  },
+  "users": [
+    {
+      "username": "epitti",
+      "enabled": true,
+      "firstName": "Edgardo",
+      "lastName": "Pittí",
+      "email": "edgardo.pitti@utp.ac.pa",
+      "credentials": [ { "type": "password", "value": "epitti", "temporary": false } ],
+      "realmRoles": ["tecnologo"]
+    },
+    {
+      "username": "orestrepo",
+      "enabled": true,
+      "firstName": "Osvaldo",
+      "lastName": "Restrepo",
+      "email": "osvaldo.restrepo@utp.ac.pa",
+      "credentials": [ { "type": "password", "value": "orestrepo", "temporary": false } ],
+      "realmRoles": ["director"]
+    },
+    {
+      "username": "madre-demo",
+      "enabled": true,
+      "firstName": "Sarah",
+      "lastName": "Pittí (madre)",
+      "email": "madre.demo@example.com",
+      "credentials": [ { "type": "password", "value": "madre-demo", "temporary": false } ],
+      "realmRoles": ["paciente"]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "labsis-portal",
+      "name": "Labsis Portal Ciudadano",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [ "http://localhost:3001/*" ],
+      "webOrigins": [ "http://localhost:3001" ],
+      "secret": "dev-portal-secret",
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "labsis-admin",
+      "name": "Labsis Admin SPA",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "redirectUris": [ "http://localhost:3002/*" ],
+      "webOrigins": [ "http://localhost:3002" ]
+    }
+  ]
+}

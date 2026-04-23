@@ -1,0 +1,8 @@
+MSH|^~\&|LABEQ|HJRE|LABSIS|MINSA|20260421121735||ORU^R01|MSG0001|P|2.5.1
+PID|1||4-769-466||PITTI^SARAH||20260301|F
+OBX|1|NM|IRT^Tripsina Inmunorreactiva|1|12.8|ng/mL|<65|N|||F
+OBX|2|NM|TSH^TSH Neonatal|1|3.10|uU/mL|<=14|N|||F
+OBX|3|NM|G6PD^G6PD|1|49.7|U/dL|>24|N|||F
+OBX|4|NM|NEOPHE^Fenilalanina|1|0.8|mg/dL|<2.4|N|||F
+OBX|5|NM|OHP17^17-Hidroxiprogesterona|1|8.8|ng/mL|<=10.6|N|||F
+OBX|6|NM|TGAL^Galactosa Total|1|1.6|mg/dL|<10.8|N|||F

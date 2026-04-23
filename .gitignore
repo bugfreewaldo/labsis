@@ -1,0 +1,39 @@
+# env
+.env
+*.local
+
+# node
+node_modules/
+.next/
+.pnpm-store/
+
+# java / gradle
+*.class
+build/
+.gradle/
+gradle-app.setting
+out/
+target/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# docker volumes and logs
+*.log
+labsis-mvp-data/
+
+# generated samples
+samples/incoming/*.A34*
+samples/incoming/corrida_*
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.iml

@@ -1,0 +1,54 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "title": "Labsis MVP — Overview",
+  "tags": ["labsis", "mvp"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Resultados autovalidados (últimos 15 min)",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "targets": [{ "expr": "increase(labsis_analitico_autovalidados_total[15m])", "refId": "A" }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Resultados en REVISAR",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "targets": [{ "expr": "increase(labsis_analitico_revisar_total[15m])", "refId": "A" }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "ia-mapper latencia (p95)",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum(rate(labsis_ia_mapper_latencia_bucket[5m])) by (le))",
+        "refId": "A"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Circuit Breaker state (ms-analitico)",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 6},
+      "targets": [{
+        "expr": "resilience4j_circuitbreaker_state{name=\"ia-mapper\"}",
+        "refId": "A"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    }
+  ]
+}

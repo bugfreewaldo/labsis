@@ -1,0 +1,389 @@
+# Labsis MVP-mock — orquestación local end-to-end
+# Levanta todo el stack: datos (Postgres HA + Redis + MinIO), ingesta (Redpanda),
+# identidad (Keycloak), aplicación (ms-* + ia-mapper + equipo-connect + portal),
+# políticas (OPA) y observabilidad (Grafana LGTM + OTel Collector).
+#
+# Uso:
+#   make up       # levanta todo
+#   make down     # apaga todo
+#   make logs S=ms-analitico
+#   make chaos-kill-primary
+name: labsis-mvp
+
+networks:
+  labsis:
+    driver: bridge
+
+volumes:
+  pg_primary_data:
+  pg_standby_data:
+  redis_data:
+  minio_data:
+  keycloak_data:
+  loki_data:
+  prometheus_data:
+  grafana_data:
+
+x-otel-env: &otel_env
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+  OTEL_RESOURCE_ATTRIBUTES: deployment.environment=mvp,service.namespace=labsis
+
+services:
+  # =========================================================================
+  # Plano de Datos
+  # =========================================================================
+  pg-primary:
+    image: bitnami/postgresql-repmgr:15
+    container_name: labsis-pg-primary
+    restart: unless-stopped
+    environment:
+      POSTGRESQL_POSTGRES_PASSWORD: postgres
+      POSTGRESQL_USERNAME: labsis
+      POSTGRESQL_PASSWORD: labsis
+      POSTGRESQL_DATABASE: labsis
+      REPMGR_PASSWORD: repmgr
+      REPMGR_PRIMARY_HOST: pg-primary
+      REPMGR_PARTNER_NODES: pg-primary,pg-standby
+      REPMGR_NODE_NAME: pg-primary
+      REPMGR_NODE_NETWORK_NAME: pg-primary
+      REPMGR_PORT_NUMBER: 5432
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_primary_data:/bitnami/postgresql
+      - ../infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U labsis -d labsis"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [labsis]
+
+  pg-standby:
+    image: bitnami/postgresql-repmgr:15
+    container_name: labsis-pg-standby
+    restart: unless-stopped
+    depends_on:
+      pg-primary:
+        condition: service_healthy
+    environment:
+      POSTGRESQL_POSTGRES_PASSWORD: postgres
+      POSTGRESQL_USERNAME: labsis
+      POSTGRESQL_PASSWORD: labsis
+      POSTGRESQL_DATABASE: labsis
+      REPMGR_PASSWORD: repmgr
+      REPMGR_PRIMARY_HOST: pg-primary
+      REPMGR_PARTNER_NODES: pg-primary,pg-standby
+      REPMGR_NODE_NAME: pg-standby
+      REPMGR_NODE_NETWORK_NAME: pg-standby
+      REPMGR_PORT_NUMBER: 5432
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_standby_data:/bitnami/postgresql
+    networks: [labsis]
+
+  redis:
+    image: redis:7-alpine
+    container_name: labsis-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6379:6379"]
+    volumes:
+      - redis_data:/data
+    networks: [labsis]
+
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: labsis-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: labsis
+      MINIO_ROOT_PASSWORD: labsis123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks: [labsis]
+
+  # =========================================================================
+  # Plano de Ingesta (Event-Driven)
+  # =========================================================================
+  redpanda:
+    image: redpandadata/redpanda:latest
+    container_name: labsis-redpanda
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp=1
+      - --memory=1G
+      - --reserve-memory=0M
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+      - --pandaproxy-addr=0.0.0.0:8082
+      - --advertise-pandaproxy-addr=localhost:8082
+    ports:
+      - "9092:9092"
+      - "8082:8082"
+      - "9644:9644"
+    networks: [labsis]
+
+  redpanda-console:
+    image: redpandadata/console:latest
+    container_name: labsis-redpanda-console
+    restart: unless-stopped
+    depends_on: [redpanda]
+    environment:
+      KAFKA_BROKERS: redpanda:29092
+    ports: ["8088:8080"]
+    networks: [labsis]
+
+  # =========================================================================
+  # Identidad y Seguridad
+  # =========================================================================
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: labsis-keycloak
+    restart: unless-stopped
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HEALTH_ENABLED: "true"
+    ports: ["8080:8080"]
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      - ../infra/keycloak:/opt/keycloak/data/import:ro
+    networks: [labsis]
+
+  opa:
+    image: openpolicyagent/opa:latest
+    container_name: labsis-opa
+    restart: unless-stopped
+    command:
+      - "run"
+      - "--server"
+      - "--addr=0.0.0.0:8181"
+      - "--log-level=info"
+      - "/policies"
+    ports: ["8181:8181"]
+    volumes:
+      - ../infra/opa/policies:/policies:ro
+    networks: [labsis]
+
+  # =========================================================================
+  # Observabilidad (Grafana LGTM all-in-one)
+  # =========================================================================
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: labsis-otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector.yaml"]
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+    volumes:
+      - ../infra/otel-collector/otel-collector.yaml:/etc/otel-collector.yaml:ro
+    networks: [labsis]
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: labsis-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+    ports: ["9090:9090"]
+    volumes:
+      - ../infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks: [labsis]
+
+  loki:
+    image: grafana/loki:latest
+    container_name: labsis-loki
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/config.yaml"]
+    ports: ["3100:3100"]
+    volumes:
+      - loki_data:/loki
+    networks: [labsis]
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: labsis-tempo
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo.yaml"]
+    ports:
+      - "3200:3200"
+      - "4417:4317"
+    volumes:
+      - ../infra/grafana-lgtm/tempo.yaml:/etc/tempo.yaml:ro
+    networks: [labsis]
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: labsis-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_FEATURE_TOGGLES_ENABLE: "traceqlEditor"
+    ports: ["3000:3000"]
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../infra/grafana-lgtm/provisioning:/etc/grafana/provisioning:ro
+      - ../infra/grafana-lgtm/dashboards:/var/lib/grafana/dashboards:ro
+    networks: [labsis]
+
+  # =========================================================================
+  # Aplicación: microservicios core
+  # =========================================================================
+  ms-pacientes:
+    build:
+      context: ../services/ms-pacientes
+    container_name: labsis-ms-pacientes
+    restart: unless-stopped
+    depends_on:
+      pg-primary:
+        condition: service_healthy
+    environment:
+      <<: *otel_env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://pg-primary:5432/labsis
+      SPRING_DATASOURCE_USERNAME: labsis
+      SPRING_DATASOURCE_PASSWORD: labsis
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:29092
+      SPRING_REDIS_HOST: redis
+      OTEL_SERVICE_NAME: ms-pacientes
+    ports: ["8101:8080"]
+    networks: [labsis]
+
+  ms-muestras:
+    build:
+      context: ../services/ms-muestras
+    container_name: labsis-ms-muestras
+    restart: unless-stopped
+    depends_on:
+      pg-primary:
+        condition: service_healthy
+      redpanda:
+        condition: service_started
+    environment:
+      <<: *otel_env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://pg-primary:5432/labsis
+      SPRING_DATASOURCE_USERNAME: labsis
+      SPRING_DATASOURCE_PASSWORD: labsis
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:29092
+      OTEL_SERVICE_NAME: ms-muestras
+    ports: ["8102:8080"]
+    networks: [labsis]
+
+  ms-analitico:
+    build:
+      context: ../services/ms-analitico
+    container_name: labsis-ms-analitico
+    restart: unless-stopped
+    depends_on:
+      pg-primary:
+        condition: service_healthy
+      opa:
+        condition: service_started
+      redpanda:
+        condition: service_started
+    environment:
+      <<: *otel_env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://pg-primary:5432/labsis
+      SPRING_DATASOURCE_USERNAME: labsis
+      SPRING_DATASOURCE_PASSWORD: labsis
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: redpanda:29092
+      OPA_URL: http://opa:8181
+      OTEL_SERVICE_NAME: ms-analitico
+    ports: ["8103:8080"]
+    networks: [labsis]
+
+  ms-bi:
+    build:
+      context: ../services/ms-bi
+    container_name: labsis-ms-bi
+    restart: unless-stopped
+    depends_on:
+      pg-standby:
+        condition: service_started
+    environment:
+      <<: *otel_env
+      # Lecturas van contra el STANDBY (CQRS ligera)
+      SPRING_DATASOURCE_URL: jdbc:postgresql://pg-standby:5432/labsis
+      SPRING_DATASOURCE_USERNAME: labsis
+      SPRING_DATASOURCE_PASSWORD: labsis
+      OTEL_SERVICE_NAME: ms-bi
+    ports: ["8104:8080"]
+    networks: [labsis]
+
+  # Python services (FastAPI)
+  ia-mapper:
+    build:
+      context: ../services/ia-mapper
+    container_name: labsis-ia-mapper
+    restart: unless-stopped
+    depends_on:
+      redpanda:
+        condition: service_started
+    environment:
+      <<: *otel_env
+      KAFKA_BOOTSTRAP: redpanda:29092
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Si falla el LLM, el ia-mapper cae a parsers deterministas
+      IA_FALLBACK_ONLY: ${IA_FALLBACK_ONLY:-false}
+      OTEL_SERVICE_NAME: ia-mapper
+    ports: ["8200:8000"]
+    networks: [labsis]
+
+  equipo-connect:
+    build:
+      context: ../services/equipo-connect
+    container_name: labsis-equipo-connect
+    restart: unless-stopped
+    depends_on:
+      ia-mapper:
+        condition: service_started
+    environment:
+      <<: *otel_env
+      WATCH_DIR: /incoming
+      UPLOAD_URL: http://ia-mapper:8000/ingest
+      EQUIPO_ID: ${EQUIPO_ID:-EQ-LAB-001}
+      OTEL_SERVICE_NAME: equipo-connect
+    volumes:
+      - ../samples/incoming:/incoming
+    networks: [labsis]
+
+  # Next.js portal
+  ms-portal:
+    build:
+      context: ../services/ms-portal
+    container_name: labsis-ms-portal
+    restart: unless-stopped
+    depends_on:
+      pg-standby:
+        condition: service_started
+      keycloak:
+        condition: service_started
+    environment:
+      <<: *otel_env
+      DATABASE_URL: postgresql://labsis:labsis@pg-standby:5432/labsis
+      NEXTAUTH_URL: http://localhost:3001
+      NEXTAUTH_SECRET: dev-secret-change-me
+      KEYCLOAK_ID: labsis-portal
+      KEYCLOAK_SECRET: dev-portal-secret
+      KEYCLOAK_ISSUER: http://localhost:8080/realms/labsis
+      OTEL_SERVICE_NAME: ms-portal
+    ports: ["3001:3000"]
+    networks: [labsis]
