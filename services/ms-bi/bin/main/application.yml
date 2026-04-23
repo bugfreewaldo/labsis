@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: ms-bi
+  datasource:
+    # Apunta al STANDBY, demostrando CQRS ligera: lecturas separadas.
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://pg-standby:5432/labsis}
+    username: ${SPRING_DATASOURCE_USERNAME:labsis}
+    password: ${SPRING_DATASOURCE_PASSWORD:labsis}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics

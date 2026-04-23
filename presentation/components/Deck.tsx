@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 
 export type DeckSlide = {
   id: string;
@@ -12,28 +13,34 @@ export type DeckSlide = {
 
 export function Deck({ slides }: { slides: DeckSlide[] }) {
   const [idx, setIdx] = useState(0);
+  const [dir, setDir] = useState<1 | -1>(1);
   const [showNotes, setShowNotes] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // Read initial slide from URL hash (#3 => slide 3, 1-indexed)
   useEffect(() => {
     const h = window.location.hash.replace('#', '');
     const n = Number(h);
     if (!Number.isNaN(n) && n >= 1 && n <= slides.length) setIdx(n - 1);
   }, [slides.length]);
 
-  // Keep hash in sync so "open in new tab" lands on the same slide
   useEffect(() => {
     window.history.replaceState(null, '', `#${idx + 1}`);
   }, [idx]);
 
-  const next = useCallback(() => setIdx(i => Math.min(i + 1, slides.length - 1)), [slides.length]);
-  const prev = useCallback(() => setIdx(i => Math.max(i - 1, 0)), []);
+  const goto = useCallback((target: number) => {
+    setIdx(prev => {
+      const t = Math.max(0, Math.min(slides.length - 1, target));
+      setDir(t >= prev ? 1 : -1);
+      return t;
+    });
+  }, [slides.length]);
+
+  const next = useCallback(() => goto(idx + 1), [goto, idx]);
+  const prev = useCallback(() => goto(idx - 1), [goto, idx]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // don't intercept when a form field is focused
       const el = document.activeElement as HTMLElement | null;
       if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
       switch (e.key) {
@@ -44,8 +51,8 @@ export function Deck({ slides }: { slides: DeckSlide[] }) {
         case 'ArrowLeft':
         case 'PageUp':
           e.preventDefault(); prev(); break;
-        case 'Home': setIdx(0); break;
-        case 'End':  setIdx(slides.length - 1); break;
+        case 'Home': goto(0); break;
+        case 'End':  goto(slides.length - 1); break;
         case 'f':
         case 'F':
           if (document.fullscreenElement) document.exitFullscreen();
@@ -60,16 +67,21 @@ export function Deck({ slides }: { slides: DeckSlide[] }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [next, prev, slides.length]);
+  }, [next, prev, goto, slides.length]);
 
   const slide = slides[idx];
-  const progress = useMemo(() => ((idx + 1) / slides.length) * 100, [idx, slides.length]);
+  const progressTarget = useMemo(() => ((idx + 1) / slides.length) * 100, [idx, slides.length]);
+  const progressMV = useMotionValue(0);
+  const progressSpring = useSpring(progressMV, { damping: 30, stiffness: 120 });
+  useEffect(() => { progressMV.set(progressTarget); }, [progressTarget, progressMV]);
+  const progressWidth = useTransform(progressSpring, v => `${v}%`);
 
   return (
-    <div ref={rootRef} className="w-screen h-screen relative bg-[#0b1e32] flex items-center justify-center">
-      {/* slide surface: 16:9, centered, letterboxed */}
+    <div ref={rootRef} className="w-screen h-screen relative flex items-center justify-center overflow-hidden">
+      <BackgroundAurora />
+
       <div
-        className="relative shadow-2xl"
+        className="relative shadow-[0_25px_80px_-20px_rgba(0,0,0,0.6)] rounded-md"
         style={{
           width: 'min(96vw, calc(96vh * 16 / 9))',
           height: 'min(54vw, 96vh)',
@@ -77,83 +89,155 @@ export function Deck({ slides }: { slides: DeckSlide[] }) {
         }}
       >
         <div className="absolute inset-0 rounded-md overflow-hidden">
-          {slide.render()}
+          <AnimatePresence mode="wait" custom={dir}>
+            <motion.div
+              key={slide.id}
+              className="absolute inset-0"
+              custom={dir}
+              initial={(d: number) => ({ opacity: 0, x: d * 60, scale: 0.985 })}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={(d: number) => ({ opacity: 0, x: -d * 60, scale: 0.985 })}
+              transition={{ duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
+            >
+              {slide.render()}
+            </motion.div>
+          </AnimatePresence>
         </div>
       </div>
 
-      {/* chrome */}
-      <TopBar idx={idx} total={slides.length} onPrev={prev} onNext={next}
-              onJump={setIdx} title={slide.title} progress={progress}
-              showNotes={showNotes} toggleNotes={() => setShowNotes(v => !v)}
-              toggleHelp={() => setShowHelp(v => !v)} />
+      <div className="absolute top-0 left-0 right-0 h-1 bg-white/10 no-print">
+        <motion.div className="h-1 bg-panama-green" style={{ width: progressWidth }} />
+      </div>
 
-      {showNotes && <NotesPanel note={slide.notes} />}
-      {showHelp && <HelpOverlay onClose={() => setShowHelp(false)} />}
+      <TopBar
+        idx={idx}
+        total={slides.length}
+        onPrev={prev}
+        onNext={next}
+        onJump={goto}
+        title={slide.title}
+        showNotes={showNotes}
+        toggleNotes={() => setShowNotes(v => !v)}
+        toggleHelp={() => setShowHelp(v => !v)}
+      />
+
+      <AnimatePresence>
+        {showNotes && <NotesPanel key="notes" note={slide.notes} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showHelp && <HelpOverlay key="help" onClose={() => setShowHelp(false)} />}
+      </AnimatePresence>
     </div>
   );
 }
 
-function TopBar({ idx, total, onPrev, onNext, onJump, title, progress, showNotes, toggleNotes, toggleHelp }: {
-  idx: number; total: number; onPrev: () => void; onNext: () => void;
-  onJump: (n: number) => void; title: string; progress: number;
-  showNotes: boolean; toggleNotes: () => void; toggleHelp: () => void;
-}) {
+function BackgroundAurora() {
   return (
     <>
-      <div className="absolute top-0 left-0 right-0 h-1 bg-white/10 no-print">
-        <div className="h-1 bg-panama-green transition-all" style={{ width: `${progress}%` }} />
-      </div>
-      <div className="absolute top-3 left-4 right-4 flex items-center justify-between text-white/80 text-xs no-print">
-        <div className="flex items-center gap-3">
-          <span className="font-mono">{idx + 1}/{total}</span>
-          <span className="opacity-60 truncate max-w-[40vw]">{title}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={onPrev} className="btn-ghost px-2 py-1 rounded hover:bg-white/10">←</button>
-          <select value={idx} onChange={e => onJump(Number(e.target.value))}
-                  className="bg-white/10 text-white text-xs px-2 py-1 rounded border border-white/20">
-            {Array.from({ length: total }, (_, i) => (
-              <option key={i} value={i} className="bg-[#0b1e32]">slide {i + 1}</option>
-            ))}
-          </select>
-          <button onClick={onNext} className="btn-ghost px-2 py-1 rounded hover:bg-white/10">→</button>
-          <button onClick={toggleNotes}
-                  className={`btn-ghost px-2 py-1 rounded hover:bg-white/10 ${showNotes ? 'bg-white/15' : ''}`}>
-            notas
-          </button>
-          <button onClick={toggleHelp} className="btn-ghost px-2 py-1 rounded hover:bg-white/10">?</button>
-        </div>
-      </div>
+      <div className="absolute inset-0 bg-[#06121f]" />
+      <motion.div
+        aria-hidden
+        className="absolute -inset-40 pointer-events-none"
+        animate={{ rotate: [0, 6, -2, 0] }}
+        transition={{ duration: 28, repeat: Infinity, ease: 'easeInOut' }}
+        style={{
+          background:
+            'radial-gradient(60% 60% at 20% 30%, rgba(22,163,74,.16), transparent 60%), ' +
+            'radial-gradient(55% 55% at 80% 70%, rgba(59,130,246,.18), transparent 60%), ' +
+            'radial-gradient(50% 50% at 50% 50%, rgba(250,204,21,.06), transparent 70%)'
+        }}
+      />
+      <motion.div
+        aria-hidden
+        className="absolute inset-0 pointer-events-none"
+        animate={{ opacity: [0.35, 0.55, 0.35] }}
+        transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+        style={{
+          backgroundImage:
+            'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.5) 100%)'
+        }}
+      />
     </>
+  );
+}
+
+function TopBar(props: {
+  idx: number; total: number; onPrev: () => void; onNext: () => void;
+  onJump: (n: number) => void; title: string;
+  showNotes: boolean; toggleNotes: () => void; toggleHelp: () => void;
+}) {
+  const { idx, total, onPrev, onNext, onJump, title, showNotes, toggleNotes, toggleHelp } = props;
+  return (
+    <div className="absolute top-3 left-4 right-4 flex items-center justify-between text-white/80 text-xs no-print">
+      <div className="flex items-center gap-3">
+        <span className="font-mono bg-white/10 rounded px-2 py-0.5">{idx + 1}/{total}</span>
+        <span className="opacity-60 truncate max-w-[40vw]">{title}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <motion.button whileTap={{ scale: 0.92 }} onClick={onPrev}
+          className="btn-ghost px-2 py-1 rounded hover:bg-white/10">←</motion.button>
+        <select value={idx} onChange={e => onJump(Number(e.target.value))}
+          className="bg-white/10 text-white text-xs px-2 py-1 rounded border border-white/20">
+          {Array.from({ length: total }, (_, i) => (
+            <option key={i} value={i} className="bg-[#0b1e32]">slide {i + 1}</option>
+          ))}
+        </select>
+        <motion.button whileTap={{ scale: 0.92 }} onClick={onNext}
+          className="btn-ghost px-2 py-1 rounded hover:bg-white/10">→</motion.button>
+        <motion.button whileTap={{ scale: 0.92 }} onClick={toggleNotes}
+          className={`btn-ghost px-2 py-1 rounded hover:bg-white/10 ${showNotes ? 'bg-white/15' : ''}`}>
+          notas
+        </motion.button>
+        <motion.button whileTap={{ scale: 0.92 }} onClick={toggleHelp}
+          className="btn-ghost px-2 py-1 rounded hover:bg-white/10">?</motion.button>
+      </div>
+    </div>
   );
 }
 
 function NotesPanel({ note }: { note?: string }) {
   return (
-    <div className="absolute right-4 top-14 bottom-4 w-[28vw] max-w-md bg-white/95 rounded-lg shadow-xl p-4 text-sm overflow-y-auto no-print">
+    <motion.div
+      className="absolute right-4 top-14 bottom-4 w-[28vw] max-w-md bg-white/95 backdrop-blur rounded-lg shadow-2xl p-4 text-sm overflow-y-auto no-print"
+      initial={{ opacity: 0, x: 40 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 40 }}
+      transition={{ type: 'spring', damping: 24, stiffness: 220 }}
+    >
       <div className="text-xs uppercase tracking-widest text-navy font-bold mb-2">Notas del presentador</div>
-      {note ? (
-        <p className="text-slate-700 leading-relaxed whitespace-pre-line">{note}</p>
-      ) : (
-        <p className="text-slate-400 italic">Sin notas para esta slide.</p>
-      )}
-    </div>
+      {note
+        ? <p className="text-slate-700 leading-relaxed whitespace-pre-line">{note}</p>
+        : <p className="text-slate-400 italic">Sin notas para esta slide.</p>}
+    </motion.div>
   );
 }
 
 function HelpOverlay({ onClose }: { onClose: () => void }) {
   return (
-    <div className="absolute inset-0 bg-black/70 text-white flex items-center justify-center no-print" onClick={onClose}>
-      <div className="bg-[#0b1e32] border border-white/20 rounded-lg p-8 max-w-lg" onClick={e => e.stopPropagation()}>
+    <motion.div
+      className="absolute inset-0 bg-black/70 text-white flex items-center justify-center no-print z-10"
+      onClick={onClose}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <motion.div
+        className="bg-[#0b1e32] border border-white/20 rounded-lg p-8 max-w-lg"
+        onClick={e => e.stopPropagation()}
+        initial={{ scale: 0.9, y: 10 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.95 }}
+        transition={{ type: 'spring', damping: 22, stiffness: 220 }}
+      >
         <h2 className="text-2xl font-bold mb-4">Atajos de teclado</h2>
         <ul className="space-y-2 text-sm">
-          <li><kbd className="kbd">→</kbd> / <kbd className="kbd">Espacio</kbd> — siguiente</li>
-          <li><kbd className="kbd">←</kbd> — anterior</li>
-          <li><kbd className="kbd">Home</kbd> / <kbd className="kbd">End</kbd> — primera / última</li>
-          <li><kbd className="kbd">F</kbd> — pantalla completa</li>
-          <li><kbd className="kbd">N</kbd> — mostrar / ocultar notas</li>
-          <li><kbd className="kbd">?</kbd> — esta ayuda</li>
-          <li><span className="opacity-60">URL con hash </span><code>#5</code><span className="opacity-60"> salta a la slide 5</span></li>
+          <li><span className="kbd">→</span> / <span className="kbd">Espacio</span> — siguiente</li>
+          <li><span className="kbd">←</span> — anterior</li>
+          <li><span className="kbd">Home</span> / <span className="kbd">End</span> — primera / última</li>
+          <li><span className="kbd">F</span> — pantalla completa</li>
+          <li><span className="kbd">N</span> — mostrar / ocultar notas</li>
+          <li><span className="kbd">?</span> — esta ayuda</li>
+          <li><span className="opacity-60">URL con hash </span><code className="kbd">#5</code><span className="opacity-60"> salta a la slide 5</span></li>
         </ul>
         <button onClick={onClose} className="mt-6 px-4 py-2 bg-panama-green rounded text-white">Cerrar</button>
         <style jsx>{`
@@ -162,7 +246,7 @@ function HelpOverlay({ onClose }: { onClose: () => void }) {
             padding: 2px 8px; font-family: ui-monospace, monospace; font-size: 0.75rem;
           }
         `}</style>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

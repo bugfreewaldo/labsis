@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -26,7 +27,7 @@ class Paciente {
     String nombre;
     String apellido;
     @Column(name = "fecha_nac") LocalDate fechaNac;
-    @Column(name = "peso_kg") Double pesoKg;
+    @Column(name = "peso_kg") BigDecimal pesoKg;
     String sexo;
     String hospital;
     @Column(name = "created_at") OffsetDateTime createdAt;
@@ -41,8 +42,8 @@ class Paciente {
     public void setApellido(String v) { this.apellido = v; }
     public LocalDate getFechaNac() { return fechaNac; }
     public void setFechaNac(LocalDate v) { this.fechaNac = v; }
-    public Double getPesoKg() { return pesoKg; }
-    public void setPesoKg(Double v) { this.pesoKg = v; }
+    public BigDecimal getPesoKg() { return pesoKg; }
+    public void setPesoKg(BigDecimal v) { this.pesoKg = v; }
     public String getSexo() { return sexo; }
     public void setSexo(String v) { this.sexo = v; }
     public String getHospital() { return hospital; }

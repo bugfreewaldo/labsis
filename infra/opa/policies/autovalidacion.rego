@@ -20,9 +20,9 @@ default decision := "AUTOVALIDADO"
 
 # Disparador: si algún analito no queda NEGATIVO, pasar a REVISAR
 decision := "REVISAR" {
-  some r
-  r := input.resultados[_]
-  estado_de(r, _) == "REVISAR"
+  some i
+  r := input.resultados[i]
+  estado_de(r, input.paciente.peso_kg) == "REVISAR"
 }
 
 # Detalle por cada analito
