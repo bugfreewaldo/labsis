@@ -2,13 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { AnimatePresence, motion, useMotionValue, useSpring, useTransform, type Variants } from 'framer-motion';
 
 export type DeckSlide = {
   id: string;
   title: string;
   notes?: string;
   render: () => ReactNode;
+};
+
+const slideVariants: Variants = {
+  enter:  (dir: number) => ({ opacity: 0, x: dir * 60, scale: 0.985 }),
+  center: { opacity: 1, x: 0, scale: 1 },
+  exit:   (dir: number) => ({ opacity: 0, x: -dir * 60, scale: 0.985 })
 };
 
 export function Deck({ slides }: { slides: DeckSlide[] }) {
@@ -94,9 +100,10 @@ export function Deck({ slides }: { slides: DeckSlide[] }) {
               key={slide.id}
               className="absolute inset-0"
               custom={dir}
-              initial={(d: number) => ({ opacity: 0, x: d * 60, scale: 0.985 })}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={(d: number) => ({ opacity: 0, x: -d * 60, scale: 0.985 })}
+              variants={slideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
               transition={{ duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
             >
               {slide.render()}
