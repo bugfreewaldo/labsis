@@ -25,7 +25,9 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from watchdog.events import FileSystemEventHandler
-from watchdog.observers import Observer
+# PollingObserver (not the default inotify-based Observer) because file events
+# don't propagate across bind mounts on Windows/WSL2/OneDrive.
+from watchdog.observers.polling import PollingObserver as Observer
 
 
 LOG = structlog.get_logger("equipo-connect")

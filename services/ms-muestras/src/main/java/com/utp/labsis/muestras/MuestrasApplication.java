@@ -3,6 +3,7 @@ package com.utp.labsis.muestras;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.*;
+import org.hibernate.annotations.CreationTimestamp;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -32,7 +33,7 @@ class Muestra {
     @Column(name = "codigo_barras") String codigoBarras;
     String estado;
     @Column(name = "trace_id") String traceId;
-    @Column(name = "created_at") OffsetDateTime createdAt;
+    @CreationTimestamp @Column(name = "created_at") OffsetDateTime createdAt;
 
     public UUID getId() { return id; }
     public UUID getPacienteId() { return pacienteId; }

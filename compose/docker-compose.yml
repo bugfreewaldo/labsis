@@ -172,6 +172,7 @@ services:
     image: openpolicyagent/opa:0.70.0
     container_name: labsis-opa
     restart: unless-stopped
+    cap_add: [NET_ADMIN]
     command:
       - "run"
       - "--server"
@@ -340,6 +341,7 @@ services:
       context: ../services/ia-mapper
     container_name: labsis-ia-mapper
     restart: unless-stopped
+    cap_add: [NET_ADMIN]
     depends_on:
       redpanda:
         condition: service_started

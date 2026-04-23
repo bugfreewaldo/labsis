@@ -1,6 +1,7 @@
 package com.utp.labsis.pacientes;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.CreationTimestamp;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -30,7 +31,7 @@ class Paciente {
     @Column(name = "peso_kg") BigDecimal pesoKg;
     String sexo;
     String hospital;
-    @Column(name = "created_at") OffsetDateTime createdAt;
+    @CreationTimestamp @Column(name = "created_at") OffsetDateTime createdAt;
 
     // getters / setters
     public UUID getId() { return id; }

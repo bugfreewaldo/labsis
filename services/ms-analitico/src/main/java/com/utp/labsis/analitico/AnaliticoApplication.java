@@ -8,6 +8,7 @@ import io.github.resilience4j.retry.annotation.Retry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.persistence.*;
+import org.hibernate.annotations.CreationTimestamp;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -50,7 +51,7 @@ class Resultado {
     String estado;
     @Column(name = "validado_por") String validadoPor;
     @Column(name = "trace_id") String traceId;
-    @Column(name = "created_at") OffsetDateTime createdAt;
+    @CreationTimestamp @Column(name = "created_at") OffsetDateTime createdAt;
 
     public UUID getId() { return id; }
     public UUID getMuestraId() { return muestraId; }
