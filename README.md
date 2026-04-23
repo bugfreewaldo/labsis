@@ -97,6 +97,97 @@ Luego abre:
 
 ---
 
+## Alternativa sin `make`: `docker compose` directo
+
+Si no tienes `make` disponible (PowerShell/CMD nativo en Windows, por ejemplo),
+puedes correrlo todo con `docker compose`. El `Makefile` es solo azúcar sobre
+estos comandos.
+
+**Dos flags son obligatorios** en cada invocación, porque el `docker-compose.yml`
+vive en `compose/` y el `.env` vive en la raíz:
+
+- `-f compose/docker-compose.yml` — ubica el compose file
+- `--env-file .env` — carga variables (sin esto, `ANTHROPIC_API_KEY` llega vacío
+  al `ia-mapper`; por defecto `docker compose` busca el `.env` al lado del YAML)
+
+### Equivalencias `make` ↔ `docker compose`
+
+Todos los comandos se ejecutan desde la **raíz** del proyecto:
+
+```bash
+# make bootstrap → simplemente copia .env.example si hace falta
+test -f .env || cp .env.example .env
+
+# make build
+docker compose -f compose/docker-compose.yml --env-file .env build
+
+# make up (sin crear topics; ver siguiente paso)
+docker compose -f compose/docker-compose.yml --env-file .env up -d
+
+# make topic-init (se corre automáticamente tras `make up`)
+docker exec labsis-redpanda rpk topic create \
+  raw.ingest normalized.results paciente.creado muestra.recibida \
+  resultado.liberado caso.positivo -p 3 -r 1
+
+# make ps
+docker compose -f compose/docker-compose.yml --env-file .env ps
+
+# make logs S=ms-analitico
+docker compose -f compose/docker-compose.yml --env-file .env logs -f ms-analitico
+
+# make restart S=ms-analitico
+docker compose -f compose/docker-compose.yml --env-file .env restart ms-analitico
+
+# make down (conserva volúmenes)
+docker compose -f compose/docker-compose.yml --env-file .env down
+
+# make clean (borra volúmenes, base de datos vacía)
+docker compose -f compose/docker-compose.yml --env-file .env down -v
+```
+
+### Alias recomendado
+
+Para no repetir los dos flags en cada comando, exporta un alias en tu shell:
+
+```bash
+# Git Bash / WSL / Linux / macOS
+alias dc='docker compose -f compose/docker-compose.yml --env-file .env'
+
+# Luego:
+dc up -d
+dc ps
+dc logs -f ms-analitico
+dc down
+```
+
+```powershell
+# PowerShell (añádelo a tu $PROFILE para persistirlo)
+function dc { docker compose -f compose/docker-compose.yml --env-file .env @args }
+
+dc up -d
+dc ps
+dc logs -f ms-analitico
+dc down
+```
+
+### Scripts auxiliares
+
+Los `make seed-*`, `make chaos-*` y `make backup-test` son solo wrappers de
+scripts bash. Puedes invocarlos directo (requieren Git Bash o WSL en Windows
+porque son `.sh`):
+
+```bash
+bash scripts/seed-sample.sh           # = make seed-sample
+bash scripts/seed-batch-96.sh         # = make seed-batch
+bash scripts/chaos-kill-primary.sh    # = make chaos-kill-primary
+bash scripts/chaos-restore-primary.sh # = make chaos-restore
+bash scripts/chaos-latency-ia.sh on   # = make chaos-latency-on
+bash scripts/chaos-latency-ia.sh off  # = make chaos-latency-off
+bash scripts/backup-test.sh           # = make backup-test
+```
+
+---
+
 ## Demos de resiliencia (para la exposición)
 
 ### 1. Failover de PostgreSQL

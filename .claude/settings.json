@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(docker version *)",
-      "Bash(docker compose *)",
-      "Bash(tee /tmp/labsis-up.log)"
-    ]
-  }
-}

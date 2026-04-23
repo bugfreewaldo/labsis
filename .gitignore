@@ -36,4 +36,5 @@ Thumbs.db
 # IDE
 .idea/
 .vscode/
+.claude/
 *.iml
