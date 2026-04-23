@@ -1,0 +1,112 @@
+{
+  "editable": true,
+  "id": null,
+  "title": "Labsis MVP — 3. Resiliencia y Continuidad",
+  "tags": ["labsis", "mvp", "resiliencia"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Circuit Breakers en OPEN (ahora)",
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 4},
+      "targets": [{
+        "expr": "sum(resilience4j_circuitbreaker_state{state=\"open\"})",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "red", "value": 1}
+          ]}
+        }
+      },
+      "options": {"colorMode": "background"},
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Reintentos invocados (15m)",
+      "gridPos": {"x": 8, "y": 0, "w": 8, "h": 4},
+      "targets": [{
+        "expr": "sum(increase(resilience4j_retry_calls_total{kind=\"successful_with_retry\"}[15m])) + sum(increase(resilience4j_retry_calls_total{kind=\"failed_with_retry\"}[15m]))",
+        "refId": "A"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Salud pg-primary",
+      "gridPos": {"x": 16, "y": 0, "w": 8, "h": 4},
+      "targets": [{
+        "expr": "up{instance=~\".*pg.*\"}",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}, "type": "value"}
+          ]
+        }
+      },
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Fallos por integración (ms-analitico -> opa)",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 7},
+      "targets": [{
+        "expr": "sum by (kind) (rate(resilience4j_circuitbreaker_calls_total{name=\"opa\"}[1m]))",
+        "refId": "A",
+        "legendFormat": "{{kind}}"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Latencia de respuesta de OPA (p95)",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 7},
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum(rate(resilience4j_circuitbreaker_calls_seconds_bucket{name=\"opa\"}[5m])) by (le))",
+        "refId": "A",
+        "legendFormat": "p95"
+      }],
+      "fieldConfig": {"defaults": {"unit": "s"}},
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 20,
+      "type": "table",
+      "title": "Estado de Circuit Breakers por nombre",
+      "gridPos": {"x": 0, "y": 11, "w": 12, "h": 7},
+      "targets": [{
+        "expr": "sum by (name, state) (resilience4j_circuitbreaker_state)",
+        "format": "table",
+        "refId": "A"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "Saturation del Bulkhead (ms-analitico:opa)",
+      "gridPos": {"x": 12, "y": 11, "w": 12, "h": 7},
+      "targets": [{
+        "expr": "resilience4j_bulkhead_available_concurrent_calls{name=\"opa\"}",
+        "refId": "A",
+        "legendFormat": "available"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    }
+  ]
+}

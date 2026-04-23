@@ -1,0 +1,71 @@
+{
+  "editable": true,
+  "id": null,
+  "title": "Labsis MVP — 2. Ingesta e Interoperabilidad",
+  "tags": ["labsis", "mvp", "ingesta"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Archivos recibidos por equipo-connect",
+      "gridPos": {"x": 0, "y": 0, "w": 8, "h": 4},
+      "targets": [{
+        "expr": "sum(increase(labsis_equipo_connect_envios_total[30m]))",
+        "refId": "A"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Tasa de error de ingesta",
+      "gridPos": {"x": 8, "y": 0, "w": 8, "h": 4},
+      "targets": [{
+        "expr": "(sum(rate(labsis_ia_mapper_ingestas_total{resultado=\"error\"}[5m])) / clamp_min(sum(rate(labsis_ia_mapper_ingestas_total[5m])), 1)) * 100",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "percent", "decimals": 2}},
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Equipos activos distintos",
+      "gridPos": {"x": 16, "y": 0, "w": 8, "h": 4},
+      "targets": [{
+        "expr": "count(count by (equipo) (labsis_equipo_connect_envios_total))",
+        "refId": "A"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Throughput por formato (tramas/min)",
+      "gridPos": {"x": 0, "y": 4, "w": 24, "h": 7},
+      "targets": [{
+        "expr": "sum by (formato) (rate(labsis_ia_mapper_ingestas_total{resultado=\"ok\"}[1m])) * 60",
+        "refId": "A",
+        "legendFormat": "{{formato}}"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 20,
+      "type": "traces",
+      "title": "Trazas recientes del ia-mapper",
+      "gridPos": {"x": 0, "y": 11, "w": 24, "h": 10},
+      "targets": [{
+        "query": "{ resource.service.name = \"ia-mapper\" }",
+        "queryType": "traceql",
+        "refId": "A"
+      }],
+      "datasource": { "type": "tempo", "uid": "tempo" }
+    }
+  ]
+}

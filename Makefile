@@ -3,7 +3,7 @@ COMPOSE := docker compose -f compose/docker-compose.yml --env-file .env
 
 .PHONY: help up down build logs ps restart bootstrap seed-sample seed-batch \
         chaos-kill-primary chaos-restore chaos-latency-on chaos-latency-off \
-        backup-test topic-init clean
+        backup-test topic-init clean demo
 
 help:
 	@echo "Labsis MVP-mock — targets disponibles:"
@@ -24,6 +24,7 @@ help:
 	@echo "  make chaos-latency-off      restaura latencia normal"
 	@echo ""
 	@echo "  make backup-test            demuestra reemplazo del backup.bat manual"
+	@echo "  make demo                   exposición automática de 5 minutos (5 actos)"
 	@echo ""
 	@echo "URLs útiles una vez levantado:"
 	@echo "  Portal ciudadano           http://localhost:3001"
@@ -89,6 +90,9 @@ chaos-latency-off:
 
 backup-test:
 	bash scripts/backup-test.sh
+
+demo:
+	bash scripts/demo.sh
 
 clean:
 	$(COMPOSE) down -v

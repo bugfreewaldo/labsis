@@ -1,54 +1,164 @@
 {
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": [
+      {
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "enable": true,
+        "expr": "changes(resilience4j_circuitbreaker_state{state=\"open\"}[1m]) > 0",
+        "iconColor": "red",
+        "name": "Circuit Breaker abierto",
+        "step": "10s",
+        "tagKeys": "name",
+        "textFormat": "CB {{name}} -> OPEN",
+        "titleFormat": "Resilience event"
+      }
+    ]
+  },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "id": null,
-  "title": "Labsis MVP — Overview",
-  "tags": ["labsis", "mvp"],
+  "title": "Labsis MVP — 1. Overview",
+  "tags": ["labsis", "mvp", "overview"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
-  "refresh": "10s",
+  "version": 2,
+  "refresh": "5s",
   "time": { "from": "now-15m", "to": "now" },
   "panels": [
     {
       "id": 1,
       "type": "stat",
-      "title": "Resultados autovalidados (últimos 15 min)",
+      "title": "Resultados autovalidados (15m)",
       "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
-      "targets": [{ "expr": "increase(labsis_analitico_autovalidados_total[15m])", "refId": "A" }],
+      "targets": [{
+        "expr": "sum(increase(labsis_analitico_autovalidados_total[15m]))",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "red", "value": null},
+            {"color": "yellow", "value": 1},
+            {"color": "green", "value": 10}
+          ]}
+        }
+      },
+      "options": {"colorMode": "background", "graphMode": "area"},
       "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "id": 2,
       "type": "stat",
-      "title": "Resultados en REVISAR",
+      "title": "Marcados REVISAR (15m)",
       "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
-      "targets": [{ "expr": "increase(labsis_analitico_revisar_total[15m])", "refId": "A" }],
+      "targets": [{
+        "expr": "sum(increase(labsis_analitico_revisar_total[15m]))",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "yellow", "value": 1},
+            {"color": "red", "value": 20}
+          ]}
+        }
+      },
+      "options": {"colorMode": "background"},
       "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "id": 3,
-      "type": "timeseries",
-      "title": "ia-mapper latencia (p95)",
-      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "type": "stat",
+      "title": "Tramas ingresadas por el ia-mapper (15m)",
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
       "targets": [{
-        "expr": "histogram_quantile(0.95, sum(rate(labsis_ia_mapper_latencia_bucket[5m])) by (le))",
+        "expr": "sum(increase(labsis_ia_mapper_ingestas_total[15m]))",
         "refId": "A"
       }],
+      "options": {"colorMode": "value"},
       "datasource": { "type": "prometheus", "uid": "prometheus" }
     },
     {
       "id": 4,
-      "type": "timeseries",
-      "title": "Circuit Breaker state (ms-analitico)",
-      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 6},
+      "type": "stat",
+      "title": "% Autovalidación",
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
       "targets": [{
-        "expr": "resilience4j_circuitbreaker_state{name=\"ia-mapper\"}",
+        "expr": "(sum(increase(labsis_analitico_autovalidados_total[15m])) / clamp_min(sum(increase(labsis_analitico_autovalidados_total[15m]) + increase(labsis_analitico_revisar_total[15m])), 1)) * 100",
         "refId": "A"
       }],
+      "fieldConfig": {"defaults": {"unit": "percent", "decimals": 1}},
+      "options": {"colorMode": "value", "graphMode": "area"},
       "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Ingesta por formato (tramas/min)",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 7},
+      "targets": [{
+        "expr": "sum by (formato) (rate(labsis_ia_mapper_ingestas_total[1m])) * 60",
+        "refId": "A",
+        "legendFormat": "{{formato}}"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Latencia ia-mapper (p50, p95, p99)",
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 7},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum(rate(labsis_ia_mapper_latencia_bucket[5m])) by (le))", "refId": "A", "legendFormat": "p50"},
+        {"expr": "histogram_quantile(0.95, sum(rate(labsis_ia_mapper_latencia_bucket[5m])) by (le))", "refId": "B", "legendFormat": "p95"},
+        {"expr": "histogram_quantile(0.99, sum(rate(labsis_ia_mapper_latencia_bucket[5m])) by (le))", "refId": "C", "legendFormat": "p99"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}},
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "Circuit Breaker (estado numérico) por integración",
+      "gridPos": {"x": 0, "y": 11, "w": 12, "h": 6},
+      "description": "0=CLOSED 1=HALF_OPEN 2=OPEN",
+      "targets": [{
+        "expr": "sum by (name, state) (resilience4j_circuitbreaker_state)",
+        "refId": "A",
+        "legendFormat": "{{name}} / {{state}}"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "Llamadas OPA — éxito / fallo",
+      "gridPos": {"x": 12, "y": 11, "w": 12, "h": 6},
+      "targets": [{
+        "expr": "sum by (kind) (rate(resilience4j_circuitbreaker_calls_total{name=\"opa\"}[1m]))",
+        "refId": "A",
+        "legendFormat": "{{kind}}"
+      }],
+      "datasource": { "type": "prometheus", "uid": "prometheus" }
+    },
+
+    {
+      "id": 30,
+      "type": "logs",
+      "title": "Logs recientes del ms-analitico",
+      "gridPos": {"x": 0, "y": 17, "w": 24, "h": 10},
+      "targets": [{
+        "expr": "{service_name=\"ms-analitico\"}",
+        "refId": "A"
+      }],
+      "options": {"showTime": true, "wrapLogMessage": true},
+      "datasource": { "type": "loki", "uid": "loki" }
     }
   ]
 }
